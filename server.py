@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 import yt_dlp
 from mcp.server.fastmcp import FastMCP
-from mcp.types import Image, TextContent
+from mcp.types import ImageContent, TextContent
 
 mcp = FastMCP("instagram-reel-analyzer")
 
@@ -100,7 +100,7 @@ def analyze_instagram_reel(url: str) -> list:
                 capture_output=True,
             )
             with open(frame_path, "rb") as frame:
-                results.append(Image(data=frame.read(), format="jpeg"))
+                results.append(ImageContent(type="image", data=frame.read(), mimeType="image/jpeg"))
 
         return results
 
