@@ -139,6 +139,6 @@ if __name__ == "__main__":
             "to a private random value of at least 32 characters."
         )
 
-    app = mcp.streamable_http_app(host="0.0.0.0")
+    app = mcp.streamable_http_app()
     app.add_middleware(BearerTokenMiddleware, token=token)
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "10000")))
