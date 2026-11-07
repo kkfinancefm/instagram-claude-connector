@@ -1,4 +1,5 @@
 import glob
+import hmac
 import os
 import re
 import subprocess
@@ -8,6 +9,7 @@ from urllib.parse import urlparse
 import yt_dlp
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ImageContent, TextContent
+from starlette.responses import JSONResponse
 
 mcp = FastMCP("instagram-reel-analyzer")
 
@@ -105,9 +107,38 @@ def analyze_instagram_reel(url: str) -> list:
         return results
 
 
+class BearerTokenMiddleware:
+    """Require a private bearer token for every HTTP request to the MCP service."""
+
+    def __init__(self, app, token: str):
+        self.app = app
+        self.expected = f"Bearer {token}".encode("utf-8")
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            headers = dict(scope.get("headers", []))
+            supplied = headers.get(b"authorization", b"")
+            if not hmac.compare_digest(supplied, self.expected):
+                response = JSONResponse(
+                    {"error": "Unauthorized"},
+                    status_code=401,
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
 if __name__ == "__main__":
-    # FastMCP reads bind settings from its settings object; run() accepts
-    # the transport only (host/port are not run() keyword arguments).
-    mcp.settings.host = "0.0.0.0"
-    mcp.settings.port = int(os.environ.get("PORT", "10000"))
-    mcp.run(transport="streamable-http")
+    import uvicorn
+
+    token = os.environ.get("MCP_API_TOKEN", "").strip()
+    if len(token) < 32:
+        raise RuntimeError(
+            "Set MCP_API_TOKEN in the hosting service's environment variables "
+            "to a private random value of at least 32 characters."
+        )
+
+    app = mcp.streamable_http_app(host="0.0.0.0")
+    app.add_middleware(BearerTokenMiddleware, token=token)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "10000")))
