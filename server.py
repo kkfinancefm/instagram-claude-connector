@@ -29,9 +29,8 @@ def validate_reel_url(url: str) -> None:
 def analyze_instagram_reel(url: str) -> list:
     """Return five sampled frames from a publicly accessible Instagram Reel for Claude to inspect.
 
-    This works only when Instagram permits unauthenticated access. It does not access
-    private accounts, bypass login, or use account cookies. Claude analyzes the
-    returned images and can describe visible scenes, style, framing, and captions.
+    Works only when Instagram permits unauthenticated access. Does not access private
+    accounts, bypass login, or use account cookies. Claude analyzes the returned images.
     """
     validate_reel_url(url)
 
@@ -72,13 +71,15 @@ def analyze_instagram_reel(url: str) -> list:
                 raise RuntimeError("Downloaded video file could not be found.")
             video_path = candidates[0]
 
-        timestamps = [duration * fraction for fraction in (0.05, 0.25, 0.50, 0.75, 0.95)]
+        timestamps = [
+            duration * fraction for fraction in (0.05, 0.25, 0.50, 0.75, 0.95)
+        ]
         results = [
             TextContent(
                 type="text",
                 text=(
-                    f"Title: {info.get('title') or 'Instagram Reel'}\n"
-                    f"Duration: {duration:.1f} seconds.\n"
+                    f"Title: {info.get('title') or 'Instagram Reel'}\\n"
+                    f"Duration: {duration:.1f} seconds.\\n"
                     "The images below are sampled frames in chronological order. "
                     "Analyze only visible content; do not assume unseen motion or audio."
                 ),
@@ -105,4 +106,9 @@ def analyze_instagram_reel(url: str) -> list:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    # Claude.ai requires a publicly reachable HTTP MCP endpoint, not local stdio.
+    mcp.run(
+        transport="streamable-http",
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", "10000")),
+    )
