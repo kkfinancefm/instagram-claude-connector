@@ -6,40 +6,38 @@ import tempfile
 from urllib.parse import urlparse
 
 import yt_dlp
-from mcp.server.fastmcp import FastMCP, Image
+from mcp.server.fastmcp import FastMCP
+from mcp.types import Image, TextContent
 
 mcp = FastMCP("instagram-reel-analyzer")
 
 ALLOWED_HOSTS = {"instagram.com", "www.instagram.com", "m.instagram.com"}
 MAX_BYTES = 100 * 1024 * 1024
 MAX_SECONDS = 180
-FRAME_COUNT = 5
 
 
-def validate_reel_url(url: str) -> str:
+def validate_reel_url(url: str) -> None:
     parsed = urlparse(url)
     host = (parsed.hostname or "").lower()
     if parsed.scheme != "https" or host not in ALLOWED_HOSTS:
         raise ValueError("Use an HTTPS link from instagram.com.")
     if not re.match(r"^/(reel|p|tv)/[A-Za-z0-9_-]+/?$", parsed.path):
         raise ValueError("That does not look like a supported Instagram post or Reel URL.")
-    return url
 
 
 @mcp.tool()
 def analyze_instagram_reel(url: str) -> list:
-    """Download a publicly accessible Instagram Reel and return five sample frames for visual analysis.
+    """Return five sampled frames from a publicly accessible Instagram Reel for Claude to inspect.
 
-    Works only when Instagram permits unauthenticated access. It does not access private
-    accounts, bypass login, or use account cookies. The caller (Claude) analyzes the
-    returned images and can describe scenes, style, framing, and visible captions.
+    This works only when Instagram permits unauthenticated access. It does not access
+    private accounts, bypass login, or use account cookies. Claude analyzes the
+    returned images and can describe visible scenes, style, framing, and captions.
     """
     validate_reel_url(url)
 
     with tempfile.TemporaryDirectory(prefix="ig-reel-") as folder:
-        output_template = os.path.join(folder, "reel.%(ext)s")
         options = {
-            "outtmpl": output_template,
+            "outtmpl": os.path.join(folder, "reel.%(ext)s"),
             "format": "best[ext=mp4]/best",
             "noplaylist": True,
             "max_filesize": MAX_BYTES,
@@ -47,7 +45,6 @@ def analyze_instagram_reel(url: str) -> list:
             "retries": 1,
             "quiet": True,
             "no_warnings": True,
-            "skip_download": False,
         }
 
         try:
@@ -57,15 +54,14 @@ def analyze_instagram_reel(url: str) -> list:
         except Exception as exc:
             raise RuntimeError(
                 "Instagram did not provide a downloadable public video. "
-                "The Reel may require login, be unavailable, or be blocked by Instagram. "
-                "Try a public Reel or upload the video directly to a trusted local workflow."
+                "The Reel may require login, be unavailable, or be blocked by Instagram."
             ) from exc
 
         duration = float(info.get("duration") or 0)
         if duration <= 0:
             raise RuntimeError("Could not determine the video's duration.")
         if duration > MAX_SECONDS:
-            raise ValueError(f"Video is longer than the {MAX_SECONDS}-second limit.")
+            raise ValueError(f"Video exceeds the {MAX_SECONDS}-second limit.")
 
         if not os.path.exists(video_path):
             candidates = [
@@ -73,21 +69,21 @@ def analyze_instagram_reel(url: str) -> list:
                 if not path.endswith((".part", ".ytdl"))
             ]
             if not candidates:
-                raise RuntimeError("The downloaded video file could not be found.")
+                raise RuntimeError("Downloaded video file could not be found.")
             video_path = candidates[0]
 
-        timestamps = [
-            duration * fraction
-            for fraction in (0.05, 0.25, 0.50, 0.75, 0.95)
+        timestamps = [duration * fraction for fraction in (0.05, 0.25, 0.50, 0.75, 0.95)]
+        results = [
+            TextContent(
+                type="text",
+                text=(
+                    f"Title: {info.get('title') or 'Instagram Reel'}\n"
+                    f"Duration: {duration:.1f} seconds.\n"
+                    "The images below are sampled frames in chronological order. "
+                    "Analyze only visible content; do not assume unseen motion or audio."
+                ),
+            )
         ]
-        content = [
-            f"Video title: {info.get('title') or 'Instagram Reel'}",
-            f"Duration: {duration:.1f} seconds.",
-            "The following images are sampled frames in chronological order. "
-            "Analyze only what is visible; do not assume unseen motion or audio."
-        ]
-
-        results = [{"type": "text", "text": "\n".join(content)}]
 
         for index, timestamp in enumerate(timestamps):
             frame_path = os.path.join(folder, f"frame-{index}.jpg")
