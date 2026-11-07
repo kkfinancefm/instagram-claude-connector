@@ -78,8 +78,8 @@ def analyze_instagram_reel(url: str) -> list:
             TextContent(
                 type="text",
                 text=(
-                    f"Title: {info.get('title') or 'Instagram Reel'}\\n"
-                    f"Duration: {duration:.1f} seconds.\\n"
+                    f"Title: {info.get('title') or 'Instagram Reel'}\n"
+                    f"Duration: {duration:.1f} seconds.\n"
                     "The images below are sampled frames in chronological order. "
                     "Analyze only visible content; do not assume unseen motion or audio."
                 ),
@@ -106,7 +106,6 @@ def analyze_instagram_reel(url: str) -> list:
 
 
 if __name__ == "__main__":
-    # Claude.ai requires a publicly reachable HTTP MCP endpoint, not local stdio.
     mcp.run(
         transport="streamable-http",
         host="0.0.0.0",
