@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: instagram-claude-connector
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
